@@ -1,0 +1,16 @@
+[Unit]
+Description=plot-advisor: backend (FastAPI, contenedor Docker)
+Requires=docker.service
+After=docker.service network-online.target postgresql.service influxdb.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/plotadvisor/crops-analyzer-infra
+ExecStart=/usr/bin/docker compose -p plotadvisor -f compose.yaml -f raspberry/compose.raspberry.yaml up --no-deps --no-build backend
+ExecStop=/usr/bin/docker compose -p plotadvisor -f compose.yaml -f raspberry/compose.raspberry.yaml stop backend
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

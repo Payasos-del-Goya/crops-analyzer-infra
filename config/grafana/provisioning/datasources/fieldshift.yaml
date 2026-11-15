@@ -1,0 +1,30 @@
+# Orígenes de datos de los dashboards (los uid deben coincidir con los de los JSON de dashboards/).
+apiVersion: 1
+datasources:
+  - name: InfluxDB fieldshift
+    uid: influxdb-fieldshift
+    type: influxdb
+    access: proxy
+    url: ${INFLUX_URL}
+    isDefault: true
+    editable: false
+    jsonData:
+      version: Flux
+      organization: fieldshift
+      defaultBucket: c001_campo
+    secureJsonData:
+      token: ${INFLUX_TOKEN}
+
+  - name: PostgreSQL fieldshift
+    uid: fieldshift-postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: ${POSTGRES_HOST}:5432
+    user: fieldshift_lectura
+    editable: false
+    jsonData:
+      database: fieldshift
+      sslmode: disable
+      postgresVersion: 1700
+    secureJsonData:
+      password: ${POSTGRES_READER_PASSWORD}

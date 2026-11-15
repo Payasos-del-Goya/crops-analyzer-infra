@@ -1,0 +1,12 @@
+[Unit]
+Description=plot-advisor: nombre plotadvisor.local (mDNS) para la IP de la WiFi GatewayPA
+Requires=avahi-daemon.service
+After=avahi-daemon.service NetworkManager.service
+
+[Service]
+ExecStart=/usr/bin/avahi-publish -a -R plotadvisor.local 10.42.0.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

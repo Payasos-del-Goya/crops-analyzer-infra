@@ -1,0 +1,1683 @@
+{
+  "uid": "fieldshift-campo",
+  "title": "fieldshift · campo",
+  "description": "Lo que miden las balizas de cada finca (buckets <cliente>_campo). c001 son las ESP32 reales (histórico anterior sintético); c002-c004, fincas simuladas.",
+  "tags": [
+    "fieldshift",
+    "campo",
+    "sensores"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "schemaVersion": 41,
+  "templating": {
+    "list": [
+      {
+        "name": "finca",
+        "label": "Finca",
+        "type": "custom",
+        "query": "Demo (ESP32 reales) : c001,Bajo Cinca : c002,Slaney : c003,Romerike : c004",
+        "options": [
+          {
+            "text": "Demo (ESP32 reales)",
+            "value": "c001",
+            "selected": true
+          },
+          {
+            "text": "Bajo Cinca",
+            "value": "c002",
+            "selected": false
+          },
+          {
+            "text": "Slaney",
+            "value": "c003",
+            "selected": false
+          },
+          {
+            "text": "Romerike",
+            "value": "c004",
+            "selected": false
+          }
+        ],
+        "current": {
+          "text": "Demo (ESP32 reales)",
+          "value": "c001"
+        },
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "por",
+        "label": "Ver por",
+        "type": "custom",
+        "query": "zona : zona,baliza : baliza,toda la finca : finca",
+        "options": [
+          {
+            "text": "zona",
+            "value": "zona",
+            "selected": true
+          },
+          {
+            "text": "baliza",
+            "value": "baliza",
+            "selected": false
+          },
+          {
+            "text": "toda la finca",
+            "value": "finca",
+            "selected": false
+          }
+        ],
+        "current": {
+          "text": "zona",
+          "value": "zona"
+        },
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "baliza",
+        "label": "Balizas",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "fieldshift-postgres"
+        },
+        "refresh": 1,
+        "query": "SELECT coalesce(label, id) AS __text, id AS __value FROM balizas WHERE cliente_id = '${finca}' ORDER BY coalesce(label, id)",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "sort": 0
+      },
+      {
+        "name": "meta",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "fieldshift-postgres"
+        },
+        "refresh": 1,
+        "hide": 2,
+        "query": "SELECT string_agg(id || '=' || coalesce(label, id) || '=' || coalesce(zona, '-'), ';' ORDER BY id) FROM balizas WHERE cliente_id = '${finca}'"
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Monitorización (Icinga)",
+      "type": "link",
+      "url": "/d/fieldshift-icinga"
+    },
+    {
+      "title": "MQTT",
+      "type": "link",
+      "url": "/d/fieldshift-mqtt"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Ahora (media de las balizas elegidas, última lectura de cada una)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Temp. aire",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"temp_aire\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= -40.0 and r._value <= 60.0)\n  |> group(columns: [\"dispositivo\"]) |> last()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 1,
+          "noValue": "—",
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Humedad aire",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"hr\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 100.0)\n  |> group(columns: [\"dispositivo\"]) |> last()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 0,
+          "noValue": "—",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Luz",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"luz_lux\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 200000.0)\n  |> group(columns: [\"dispositivo\"]) |> last()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 0,
+          "noValue": "—",
+          "unit": "lux"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Lluvia (1 h)",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"lluvia_mm\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 200.0)\n  |> group(columns: [\"dispositivo\"]) |> sum()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 1,
+          "noValue": "—",
+          "unit": "suffix: mm"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Humedad suelo",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"humedad_vol\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 100.0)\n  |> group(columns: [\"dispositivo\"]) |> last()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 0,
+          "noValue": "—",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Temp. suelo",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"temperatura\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= -20.0 and r._value <= 60.0)\n  |> group(columns: [\"dispositivo\"]) |> last()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 1,
+          "noValue": "—",
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "pH suelo",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"ph\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 14.0)\n  |> group(columns: [\"dispositivo\"]) |> last()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 1,
+          "noValue": "—"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Conductividad",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"conductividad\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 20000.0)\n  |> group(columns: [\"dispositivo\"]) |> last()\n  |> group() |> mean()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 0,
+          "noValue": "—",
+          "unit": "suffix: µS/cm"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "text": {
+          "valueSize": 34
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Atmósfera",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Temperatura del aire",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"temp_aire\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= -40.0 and r._value <= 60.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": null,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "unit": "celsius",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Humedad del aire",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"hr\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 100.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": 0,
+            "axisSoftMax": 100
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "unit": "percent",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Luz",
+      "description": "Luxómetro de la baliza. A pleno sol pasa de 50 000 lx.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"luz_lux\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 200000.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": 0,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "unit": "lux",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Lluvia",
+      "description": "Milímetros por intervalo del gráfico (media de las balizas de cada serie).",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"atmosfera\" and r._field == \"lluvia_mm\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 200.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\", \"dispositivo\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: sum, createEmpty: false)\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": 0,
+            "axisSoftMax": null,
+            "drawStyle": "bars",
+            "barAlignment": -1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "unit": "suffix: mm",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Suelo",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Humedad del suelo",
+      "description": "Humedad volumétrica (% de agua en el volumen de suelo), media de todas las profundidades.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"humedad_vol\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 100.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": 0,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "unit": "percent",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Temperatura del suelo",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"temperatura\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= -20.0 and r._value <= 60.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": null,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "unit": "celsius",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "pH del suelo",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"ph\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 14.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": 5,
+            "axisSoftMax": 9
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Conductividad del suelo",
+      "description": "Conductividad eléctrica: sube con las sales y el abonado. Por encima de ~2000 µS/cm muchos cultivos empiezan a sufrir.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"strings\"\nimport \"dict\"\nimport \"array\"\nfilas = array.map(arr: strings.split(v: \"${meta:raw}\", t: \";\"), fn: (x) => strings.split(v: x, t: \"=\"))\nnombre = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[1]})))\nzona = dict.fromList(pairs: array.map(arr: filas, fn: (x) => ({key: x[0], value: x[2]})))\nfrom(bucket: \"${finca}_campo\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"suelo\" and r._field == \"conductividad\")\n  |> filter(fn: (r) => contains(value: r.dispositivo, set: ${baliza:json}) and dict.get(dict: nombre, key: r.dispositivo, default: \"\") != \"\")\n  |> filter(fn: (r) => r._value >= 0.0 and r._value <= 20000.0)\n  |> map(fn: (r) => ({r with serie:\n      if \"${por}\" == \"zona\" then (if dict.get(dict: zona, key: r.dispositivo, default: \"-\") == \"-\" then \"sin zona\"\n                                   else dict.get(dict: zona, key: r.dispositivo, default: \"-\"))\n      else if \"${por}\" == \"baliza\" then dict.get(dict: nombre, key: r.dispositivo, default: r.dispositivo)\n      else \"media de la finca\"}))\n  |> group(columns: [\"serie\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"serie\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 3600000,
+            "axisSoftMin": 0,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.serie}",
+          "noValue": "Sin datos",
+          "unit": "suffix: µS/cm",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rojo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Azul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Amarillo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Naranja"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}

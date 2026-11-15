@@ -1,0 +1,718 @@
+{
+  "uid": "fieldshift-mqtt",
+  "title": "fieldshift · MQTT",
+  "description": "Broker Mosquitto ($SYS) y mensajes de las balizas. Bucket mqtt de InfluxDB (30 días).",
+  "tags": [
+    "fieldshift",
+    "mqtt",
+    "monitorización"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "schemaVersion": 41,
+  "links": [
+    {
+      "title": "Monitorización (Icinga)",
+      "type": "link",
+      "url": "/d/fieldshift-icinga"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Broker Mosquitto",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Clientes conectados",
+      "description": "Telegraf (varias conexiones), el puente de la malla y herramientas como MQTT Explorer.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "from(bucket: \"mqtt\") |> range(start: -7d)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"clients/connected\")\n  |> last() |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Mensajes recibidos por minuto",
+      "description": "Media del último minuto.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "from(bucket: \"mqtt\") |> range(start: -7d)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"load/messages/received/1min\")\n  |> last() |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Mensajes descartados",
+      "description": "Mensajes que el broker no pudo entregar (colas llenas, clientes lentos) desde que arrancó. Debería ser 0.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "from(bucket: \"mqtt\") |> range(start: -7d)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"publish/messages/dropped\")\n  |> last() |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Mensajes por minuto",
+      "description": "Enviados > recibidos es normal: cada mensaje se reparte a cada suscriptor.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"date\"\nfrom(bucket: \"mqtt\") |> range(start: date.sub(d: 7d, from: v.timeRangeStart), stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"load/messages/received/1min\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> filter(fn: (r) => r._time >= v.timeRangeStart and exists r._value)\n  |> keep(columns: [\"_time\", \"_value\"])"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"date\"\nfrom(bucket: \"mqtt\") |> range(start: date.sub(d: 7d, from: v.timeRangeStart), stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"load/messages/sent/1min\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> filter(fn: (r) => r._time >= v.timeRangeStart and exists r._value)\n  |> keep(columns: [\"_time\", \"_value\"])"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"date\"\nfrom(bucket: \"mqtt\") |> range(start: date.sub(d: 7d, from: v.timeRangeStart), stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"load/publish/dropped/1min\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> filter(fn: (r) => r._time >= v.timeRangeStart and exists r._value)\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 600000,
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "recibidos"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "enviados"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "descartados"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Clientes conectados",
+      "description": "Saltos = reconexiones (el puente al reiniciarse, Telegraf...). Conexiones nuevas constantes = algún cliente reconectando en bucle.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"date\"\nfrom(bucket: \"mqtt\") |> range(start: date.sub(d: 7d, from: v.timeRangeStart), stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"clients/connected\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> filter(fn: (r) => r._time >= v.timeRangeStart and exists r._value)\n  |> keep(columns: [\"_time\", \"_value\"])"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "import \"date\"\nfrom(bucket: \"mqtt\") |> range(start: date.sub(d: 7d, from: v.timeRangeStart), stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mosquitto\" and r.metrica == \"load/connections/1min\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: true)\n  |> fill(usePrevious: true)\n  |> filter(fn: (r) => r._time >= v.timeRangeStart and exists r._value)\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 600000,
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "clientes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "conexiones nuevas por minuto"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Mensajes de las balizas (plot-advisor/# y fieldshift/#, contados antes de validar)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Mensajes por minuto de cada baliza",
+      "description": "Cada placa manda suelo y atmósfera cada ~30 s y estado cada ~60 s (~5 mensajes/min). Si una baja a 0, ha dejado de llegar al broker.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "from(bucket: \"mqtt\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_topic\" and r._field == \"mensajes_sum\")\n  |> group(columns: [\"dispositivo\"])\n  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"dispositivo\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": 600000,
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "displayName": "${__field.labels.dispositivo}",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "b5434D4"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Rojo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bA78B10"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Azul"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bA6FDA8"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Amarillo"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bA7F8F8"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Naranja"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Topics en el periodo",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fieldshift"
+      },
+      "description": "Topic = fieldshift/<cliente>/<baliza>/<tipo>. Último = minuto en el que se contó el último mensaje.",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fieldshift"
+          },
+          "query": "from(bucket: \"mqtt\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_topic\")\n  |> group(columns: [\"topic\", \"dispositivo\", \"tipo\"])\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> reduce(identity: {mensajes: 0.0, bytes: 0.0, ultimo: time(v: 0)},\n            fn: (r, accumulator) => ({mensajes: accumulator.mensajes + float(v: r.mensajes_sum),\n                                      bytes: accumulator.bytes + float(v: r.bytes_sum),\n                                      ultimo: if r._time > accumulator.ultimo then r._time else accumulator.ultimo}))\n  |> map(fn: (r) => ({dispositivo: r.dispositivo, tipo: r.tipo, mensajes: r.mensajes,\n                      tamano: if r.mensajes > 0.0 then r.bytes / r.mensajes else 0.0, ultimo: r.ultimo}))\n  |> group() |> sort(columns: [\"dispositivo\", \"tipo\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dispositivo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Baliza"
+              },
+              {
+                "id": "custom.width",
+                "value": 240
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "b5434D4": {
+                        "text": "Rojo (b5434D4)",
+                        "index": 0
+                      },
+                      "bA78B10": {
+                        "text": "Azul (bA78B10)",
+                        "index": 1
+                      },
+                      "bA6FDA8": {
+                        "text": "Amarillo (bA6FDA8)",
+                        "index": 2
+                      },
+                      "bA7F8F8": {
+                        "text": "Naranja (bA7F8F8)",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tipo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Tipo"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mensajes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Mensajes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tamano"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Tamaño medio"
+              },
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ultimo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Último mensaje"
+              },
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "dispositivo": 0,
+              "tipo": 1,
+              "mensajes": 2,
+              "tamano": 3,
+              "ultimo": 4
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    }
+  ]
+}

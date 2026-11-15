@@ -1,0 +1,34 @@
+# Raspberry fieldshift-gw: solo backend y frontend en contenedores, usando lo que ya tiene instalado
+# (PostgreSQL, InfluxDB, Mosquitto, Telegraf, Grafana, Icinga). Se usa SIEMPRE junto a ../compose.yaml:
+#
+#   docker compose -p plotadvisor -f compose.yaml -f raspberry/compose.raspberry.yaml build backend frontend
+#
+# Red del anfitrión (network_mode: host): Docker está configurado sin tocar el cortafuegos
+# (/etc/docker/daemon.json "iptables": false) para no romper la salida a Internet de la WiFi GatewayPA,
+# así que los contenedores no tienen red propia. Arrancan y paran con systemd (raspberry/systemd/).
+services:
+  backend:
+    build:
+      network: host
+    network_mode: host
+    restart: "no"          # lo reinicia systemd
+    environment: !override
+      HOST: 127.0.0.1      # solo Apache y el frontend lo ven
+      PORT: "8000"
+      INFLUX_URL: http://127.0.0.1:8086
+      POSTGRES_HOST: 127.0.0.1
+      # Resto de claves: las de config.py del backend (las de esta Raspberry).
+    depends_on: !reset {}
+
+  frontend:
+    build:
+      network: host
+      args:
+        BACKEND_URL: http://127.0.0.1:8000
+    network_mode: host
+    restart: "no"
+    environment:
+      HOST: 127.0.0.1
+      PORT: "3001"         # el 3000 es de Grafana
+    ports: !reset []
+    depends_on: !reset {}

@@ -1,0 +1,153 @@
+# crops-analyzer / plot-advisor: toda la infraestructura en contenedores.
+#
+#   docker compose up -d --build
+#
+# Espera los repos de la aplicación como carpetas hermanas (así quedan al clonar el repo plot-advisor con sus
+# submódulos): ../crops-analyzer-backend y ../crops-analyzer-frontend. Para otras rutas: BACKEND_SRC / FRONTEND_SRC.
+#
+# Panel: http://<máquina>/   Grafana: http://<máquina>:3000 (admin / la clave de GF_SECURITY_ADMIN_PASSWORD)
+# Balizas ESP32: MQTT en <máquina>:1883 con el usuario y la clave del firmware (puente/config.h).
+#
+# Las claves son de demo y van aquí a propósito (repo privado). Para otra instalación, cambiarlas en x-claves.
+# Icinga no está: vigila la propia máquina (temperatura, servicios, WiFi) y va instalado en ella.
+# Para la Raspberry (solo backend y frontend, junto a lo que ya tiene instalado): raspberry/README.md.
+
+x-claves: &claves
+  INFLUX_TOKEN: plotadvisor-demo-influx-token-0b9d6c41e2a84f37
+  POSTGRES_APP_PASSWORD: plotadvisor-app-3f81c0d2
+  POSTGRES_READER_PASSWORD: plotadvisor-lectura-7a24e9b6
+  MQTT_BALIZAS_USER: "plot-advisor"
+  MQTT_BALIZAS_PASSWORD: "secretoDeMQTT123"
+  MQTT_TELEGRAF_PASSWORD: plotadvisor-telegraf-c5e1a093
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      <<: *claves
+      POSTGRES_DB: fieldshift
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: plotadvisor-postgres-91d4b7e0
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./config/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fieldshift"]
+      interval: 5s
+      retries: 20
+
+  influxdb:
+    image: influxdb:2.7
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: plotadvisor-influx-admin
+      DOCKER_INFLUXDB_INIT_ORG: fieldshift
+      DOCKER_INFLUXDB_INIT_BUCKET: c001_campo
+      DOCKER_INFLUXDB_INIT_RETENTION: 730d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: plotadvisor-demo-influx-token-0b9d6c41e2a84f37
+    volumes:
+      - influxdb:/var/lib/influxdb2
+      - ./config/influxdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 5s
+      retries: 20
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    entrypoint: ["/mosquitto/config/entrypoint.sh"]
+    environment: *claves
+    volumes:
+      - ./config/mosquitto:/mosquitto/config:ro
+      - mosquitto:/mosquitto/data
+    ports:
+      - "1883:1883"
+
+  telegraf:
+    image: telegraf:1.33
+    restart: unless-stopped
+    command: ["telegraf", "--config", "/etc/telegraf/telegraf.conf", "--config-directory", "/etc/telegraf/telegraf.d"]
+    environment:
+      <<: *claves
+      MQTT_HOST: mosquitto
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TELEGRAF_TOKEN: plotadvisor-demo-influx-token-0b9d6c41e2a84f37
+    volumes:
+      - ./config/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - ./config/telegraf/campo.conf:/etc/telegraf/telegraf.d/campo.conf:ro
+      - ./config/telegraf/mqtt.conf:/etc/telegraf/telegraf.d/mqtt.conf:ro
+    depends_on:
+      mosquitto:
+        condition: service_started
+      influxdb:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    restart: unless-stopped
+    environment:
+      <<: *claves
+      INFLUX_URL: http://influxdb:8086
+      POSTGRES_HOST: postgres
+      GF_SECURITY_ADMIN_PASSWORD: plotadvisor-grafana
+      GF_USERS_DEFAULT_LANGUAGE: es-ES
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards/fieldshift:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./docker/backend
+      additional_contexts:
+        app: ${BACKEND_SRC:-../crops-analyzer-backend}
+    image: plotadvisor/backend
+    restart: unless-stopped
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: plotadvisor-demo-influx-token-0b9d6c41e2a84f37
+      INFLUX_ICINGA_TOKEN: plotadvisor-demo-influx-token-0b9d6c41e2a84f37
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: fieldshift_app
+      POSTGRES_PASSWORD: plotadvisor-app-3f81c0d2
+    volumes:
+      - backend-cache:/app/cache   # clima de Meteomatics guardado (sobrevive a reinicios)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./docker/frontend
+      additional_contexts:
+        app: ${FRONTEND_SRC:-../crops-analyzer-frontend}
+      args:
+        BACKEND_URL: http://backend:8000
+    image: plotadvisor/frontend
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres:
+  influxdb:
+  mosquitto:
+  grafana:
+  backend-cache:
