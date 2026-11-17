@@ -8,7 +8,7 @@
 # Panel: http://<máquina>/   Grafana: http://<máquina>:3000 (admin / la clave de GF_SECURITY_ADMIN_PASSWORD)
 # Balizas ESP32: MQTT en <máquina>:1883 con el usuario y la clave del firmware (puente/config.h).
 #
-# Las claves son de demo y van aquí a propósito (repo privado). Para otra instalación, cambiarlas en x-claves.
+# Las claves son de demo y van aquí a propósito. Para otra instalación, cambiarlas en x-claves.
 # Icinga no está: vigila la propia máquina (temperatura, servicios, WiFi) y va instalado en ella.
 # Para la Raspberry (solo backend y frontend, junto a lo que ya tiene instalado): raspberry/README.md.
 
